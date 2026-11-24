@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Disponibilidad de Butacas en Vivo - Teatro</title>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: #141b2d;
+      --card-border: #232d4b;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --pin-size: 16px;
+      --pin-font-size: 0.5rem;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(180deg, #162038 0%, #0e1628 100%);
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .live-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulseLive 1.4s infinite alternate;
+      flex-shrink: 0;
+    }
+
+    .live-dot.offline {
+      background-color: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+    }
+
+    @keyframes pulseLive {
+      0% { opacity: 0.45; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1.15); }
+    }
+
+    .header-title h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .header-subtitle {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge-counter {
+      display: inline-flex;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      border: 1px solid var(--card-border);
+    }
+
+    .badge-counter span strong {
+      color: #38bdf8;
+    }
+
+    .btn-sync {
+      background: #0284c7;
+      color: #fff;
+      border: 1px solid #38bdf8;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-sync:hover {
+      background: #0369a1;
+    }
+
+    .map-pane {
+      flex: 1;
+      padding: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: radial-gradient(circle at top, #151e36 0%, #0b0f19 80%);
+      position: relative;
+    }
+
+    .legend-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+      background: rgba(20, 27, 45, 0.92);
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--card-border);
+      font-size: 0.74rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .status-strip {
+      width: 100%;
+      max-width: 1120px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 0 4px;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+    }
+
+    .status-strip strong {
+      color: #e2e8f0;
+    }
+
+    .seating-viewport {
+      width: 100%;
+      flex: 1;
+      min-height: 460px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      background: #090e1a;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .seating-viewport:active {
+      cursor: grabbing;
+    }
+
+    .seating-zoom-canvas {
+      transform-origin: center center;
+      transition: transform 0.08s ease-out;
+      display: inline-block;
+      user-select: none;
+      padding: 20px;
+    }
+
+    .custom-canvas-wrap {
+      position: relative;
+      display: inline-block;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .custom-canvas-img {
+      display: block;
+      width: 860px;
+      height: auto;
+      pointer-events: none;
+    }
+
+    .custom-overlay-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .seat-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: var(--pin-size);
+      height: var(--pin-size);
+      border-radius: 50%;
+      font-size: var(--pin-font-size);
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.7);
+      transition: transform 0.12s ease, background-color 0.2s ease;
+      z-index: 5;
+      border: 1.5px solid rgba(255,255,255,0.85);
+    }
+
+    .seat-pin:hover {
+      transform: translate(-50%, -50%) scale(1.4) !important;
+      z-index: 40 !important;
+      border-color: #fff;
+    }
+
+    .stage-container {
+      margin-top: 24px;
+      text-align: center;
+    }
+
+    .stage-box {
+      width: 65%;
+      margin: 0 auto;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+      color: #38bdf8;
+      font-weight: 800;
+      letter-spacing: 4px;
+      padding: 10px 0;
+      border-radius: 6px 6px 30px 30px;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+    }
+
+    .theatre-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .theatre-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .row-label {
+      width: 20px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .aisle-space { width: 16px; }
+
+    .seat {
+      width: 23px;
+      height: 23px;
+      border-radius: 4px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      user-select: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .seat:hover {
+      transform: scale(1.25);
+      z-index: 30;
+    }
+
+    /* Colores por zona */
+    .seat[data-cat="Luneta"], .seat-pin[data-cat="Luneta"], .seat-pin[data-cat="Preferente B"] { background-color: #0284c7; color: #ffffff; }
+    .seat[data-cat="Mezzanine"], .seat-pin[data-cat="Mezzanine"] { background-color: #7c3aed; color: #ffffff; }
+    .seat[data-cat="Preferente"], .seat-pin[data-cat="Preferente"], .seat-pin[data-cat="Preferente A"] { background-color: #16a34a; color: #ffffff; }
+    .seat[data-cat="Asientos Especiales"], .seat-pin[data-cat="Asientos Especiales"], .seat-pin[data-cat="1ra Fila"] { background-color: #eab308; color: #000000; }
+    .seat-pin[data-cat="Visibilidad Parcial"] { background-color: #ea580c; color: #ffffff; }
+
+    /* Butacas ocupadas */
+    .seat.occupied, .seat-pin.occupied {
+      background-color: #475569 !important;
+      color: #cbd5e1 !important;
+      font-weight: 800 !important;
+      border-color: #ef4444 !important;
+      opacity: 0.85;
+      text-decoration: line-through;
+    }
+
+    .seat-tooltip {
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #090d16;
+      color: #fff;
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      z-index: 99;
+    }
+    .seat:hover .seat-tooltip, .seat-pin:hover .seat-tooltip { opacity: 1; }
+
+    /* Controles flotantes de zoom */
+    .map-controls-floating {
+      position: absolute;
+      bottom: 22px;
+      left: 22px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 22, 39, 0.92);
+      border: 1px solid var(--card-border);
+      padding: 6px 10px;
+      border-radius: 25px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+
+    .btn-zoom {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #fff;
+      font-weight: bold;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .btn-zoom:hover { background: #38bdf8; border-color: #38bdf8; color: #000; }
+
+    .zoom-level-text {
+      font-size: 0.72rem;
+      color: #38bdf8;
+      min-width: 42px;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .toast-banner {
+      position: fixed;
+      top: 72px;
+      right: 18px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      z-index: 999;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: all 0.25s ease;
+      pointer-events: none;
+    }
+    .toast-banner.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <div class="live-dot" id="liveDot"></div>
+      <div>
+        <h1>🎭 Disponibilidad de Butacas en Vivo</h1>
+        <div class="header-subtitle" id="connectionSubtitle">Conectando con el mapa en tiempo real...</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="badge-counter">
+        <span>Total: <strong id="stat-total">0</strong></span>
+        <span>Ocupados: <strong id="stat-ocupados" style="color:#f87171;">0</strong></span>
+        <span>Disponibles: <strong id="stat-disponibles" style="color:#4ade80;">0</strong></span>
+      </div>
+      <button type="button" class="btn-sync" id="btnForceSync">🔄 Actualizar</button>
+    </div>
+  </header>
+
+  <div id="updateToast" class="toast-banner">✨ Disponibilidad actualizada</div>
+
+  <div class="map-pane">
+    <div class="legend-bar" id="legendBar">
+      <div class="legend-item"><div class="legend-color" style="background: #0284c7;"></div><span id="leg-luneta">Luneta / Pref. B</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #7c3aed;"></div><span id="leg-mezzanine">Mezzanine</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #16a34a;"></div><span id="leg-preferente">Preferente A</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #eab308;"></div><span id="leg-especial">Especiales / 1ra Fila</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #475569; border:1px solid #ef4444;"></div><span>Ocupado</span></div>
+    </div>
+
+    <div class="status-strip">
+      <span>Última actualización del mapa: <strong id="lastUpdatedLabel">--</strong></span>
+      <span>Revisión automática cada <strong>5s</strong> (próxima en <strong id="nextCheckCountdown">5s</strong>)</span>
+    </div>
+
+    <div class="map-controls-floating">
+      <button id="btnZoomOut" class="btn-zoom" title="Alejar">－</button>
+      <span id="zoomLevelIndicator" class="zoom-level-text">100%</span>
+      <button id="btnZoomIn" class="btn-zoom" title="Acercar">＋</button>
+      <button id="btnZoomReset" class="btn-zoom" style="width:auto; padding:0 9px; border-radius:12px; font-size:0.7rem;">Ajustar</button>
+    </div>
+
+    <div class="seating-viewport" id="seatingViewport">
+      <div class="seating-zoom-canvas" id="seatingZoomCanvas">
+        <div id="standardGridContainer">
+          <div class="theatre-grid" id="theatreGrid"></div>
+          <div class="stage-container">
+            <div class="stage-box">ESCENARIO</div>
+          </div>
+        </div>
+
+        <div id="customCanvasWrap" class="custom-canvas-wrap" style="display:none;">
+          <img id="customCanvasImg" class="custom-canvas-img" src="" alt="Plano del Teatro">
+          <div id="customOverlayLayer" class="custom-overlay-layer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ROW_DEFINITIONS = [
+      { rowId: "S", cat: "Luneta", left: [33,32,31,30,29,28,27,26], center: [25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { rowId: "R", cat: "Luneta", left: [33,32,31,30,29,28,27,26], center: [25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { rowId: "Q", cat: "Luneta", left: [32,31,30,29,28,27,26,25], center: [24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { rowId: "P", cat: "Luneta", left: [32,31,30,29,28,27,26,25], center: [24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { rowId: "O", cat: "Luneta", left: [31,30,29,28,27,26,25,24], center: [23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { rowId: "N", cat: "Luneta", left: [31,30,29,28,27,26,25,24], center: [23,22,21,20,19,18,17,16,15,14,13,12,11,10,9], right: [8,7,6,5,4,3,2,1] },
+      { isSeparator: true, text: "PASILLO INTERMEDIO" },
+      { rowId: "M", cat: "Mezzanine", left: [20,19,18], center: [17,16,15,14,13,12,11,10,9,8,7,6,5,4], right: [3,2,1] },
+      { rowId: "L", cat: "Mezzanine", left: [19,18,17], center: [16,15,14,13,12,11,10,9,8,7,6,5,4], right: [3,2,1] },
+      { rowId: "K", cat: "Mezzanine", left: [19,18,17], center: [16,15,14,13,12,11,10,9,8,7,6,5,4], right: [3,2,1] },
+      { rowId: "J", cat: "Mezzanine", left: [19,18,17], center: [16,15,14,13,12,11,10,9,8,7,6,5,4], right: [3,2,1] },
+      { rowId: "I", cat: "Mezzanine", left: [18,17,16], center: [15,14,13,12,11,10,9,8,7,6,5,4], right: [3,2,1] },
+      { isSeparator: true, text: "PASILLO PRINCIPAL" },
+      { rowId: "H", cat: "Preferente", left: [21,20,19,18,17,16], center: [15,14,13,12,11,10,9,8,7,6,5,4,3,2,1], right: ["ESP3", "ESP2", "ESP1"] },
+      { rowId: "G", cat: "Preferente", left: [26,25,24,23,22,21], center: [20,19,18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "F", cat: "Preferente", left: [26,25,24,23,22,21], center: [20,19,18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "E", cat: "Preferente", left: [25,24,23,22,21,20], center: [19,18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "D", cat: "Preferente", left: [25,24,23,22,21,20], center: [19,18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "C", cat: "Preferente", left: [24,23,22,21,20,19], center: [18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "B", cat: "Preferente", left: [24,23,22,21,20,19], center: [18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] },
+      { rowId: "A", cat: "Preferente", left: [24,23,22,21,20,19], center: [18,17,16,15,14,13,12,11,10,9,8,7], right: [6,5,4,3,2,1] }
+    ];
+
+    let allSeatElements = {};
+    let currentLayoutSignature = "";
+    let lastOccupiedSignature = "";
+    let preciosZona = {
+      "Luneta": 150,
+      "Mezzanine": 180,
+      "Preferente": 200,
+      "Asientos Especiales": 120
+    };
+
+    let currentZoom = 1.0;
+    let panX = 0, panY = 0;
+    let isPanning = false;
+    let startPanX = 0, startPanY = 0;
+
+    const POLL_SECONDS = 5;
+    let countdown = POLL_SECONDS;
+
+    function showToast(msg) {
+      const toast = document.getElementById('updateToast');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    function createSeat(seatId, displayNum, category) {
+      const seat = document.createElement('div');
+      seat.className = 'seat';
+      seat.textContent = displayNum;
+      seat.dataset.seatId = seatId;
+      seat.dataset.cat = category;
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'seat-tooltip';
+      seat.appendChild(tooltip);
+
+      allSeatElements[seatId] = seat;
+      return seat;
+    }
+
+    function createSeatPin(seatId, posX, posY, category) {
+      const pin = document.createElement('div');
+      pin.className = 'seat-pin';
+      pin.textContent = seatId;
+      pin.dataset.seatId = seatId;
+      pin.dataset.cat = category;
+      pin.style.left = `${posX}%`;
+      pin.style.top = `${posY}%`;
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'seat-tooltip';
+      pin.appendChild(tooltip);
+
+      allSeatElements[seatId] = pin;
+      return pin;
+    }
+
+    function buildMapLayout(stateData) {
+      allSeatElements = {};
+      const standardContainer = document.getElementById('standardGridContainer');
+      const customCanvasWrap = document.getElementById('customCanvasWrap');
+      const customImg = document.getElementById('customCanvasImg');
+      const customOverlay = document.getElementById('customOverlayLayer');
+      const theatreGrid = document.getElementById('theatreGrid');
+
+      const isCustom = stateData && stateData.modo === "custom" && stateData.mapaImg && Array.isArray(stateData.customSeats);
+
+      if (isCustom) {
+        standardContainer.style.display = 'none';
+        customCanvasWrap.style.display = 'inline-block';
+        customImg.src = stateData.mapaImg;
+        customOverlay.innerHTML = '';
+
+        stateData.customSeats.forEach(st => {
+          const pin = createSeatPin(st.id, st.x, st.y, st.cat);
+          customOverlay.appendChild(pin);
+        });
+      } else {
+        customCanvasWrap.style.display = 'none';
+        standardContainer.style.display = 'block';
+        theatreGrid.innerHTML = '';
+
+        ROW_DEFINITIONS.forEach(rowDef => {
+          if (rowDef.isSeparator) {
+            const sep = document.createElement('div');
+            sep.style.height = '14px';
+            sep.style.display = 'flex';
+            sep.style.alignItems = 'center';
+            sep.style.justifyContent = 'center';
+            sep.innerHTML = `<span style="font-size:0.65rem; color:#334155; letter-spacing:3px;">${rowDef.text}</span>`;
+            theatreGrid.appendChild(sep);
+            return;
+          }
+
+          const rowEl = document.createElement('div');
+          rowEl.className = 'theatre-row';
+
+          const lblLeft = document.createElement('div');
+          lblLeft.className = 'row-label';
+          lblLeft.textContent = rowDef.rowId;
+          rowEl.appendChild(lblLeft);
+
+          const buildBlock = (nums) => {
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex';
+            wrap.style.gap = '3px';
+            nums.forEach(num => {
+              const isEsp = typeof num === 'string' && num.startsWith('ESP');
+              const seatId = isEsp ? num : `${rowDef.rowId}${num}`;
+              const cat = isEsp ? 'Asientos Especiales' : rowDef.cat;
+              wrap.appendChild(createSeat(seatId, num, cat));
+            });
+            return wrap;
+          };
+
+          rowEl.appendChild(buildBlock(rowDef.left));
+          const aisle1 = document.createElement('div');
+          aisle1.className = 'aisle-space';
+          rowEl.appendChild(aisle1);
+          rowEl.appendChild(buildBlock(rowDef.center));
+          const aisle2 = document.createElement('div');
+          aisle2.className = 'aisle-space';
+          rowEl.appendChild(aisle2);
+          rowEl.appendChild(buildBlock(rowDef.right));
+
+          const lblRight = document.createElement('div');
+          lblRight.className = 'row-label';
+          lblRight.textContent = rowDef.rowId;
+          rowEl.appendChild(lblRight);
+
+          theatreGrid.appendChild(rowEl);
+        });
+      }
+    }
+
+    function updateLegendPrices(precios, isCustom) {
+      if (!precios) return;
+      preciosZona = { ...preciosZona, ...precios };
+      const bar = document.getElementById('legendBar');
+      if (!bar) return;
+
+      if (isCustom) {
+        bar.innerHTML = `
+          <div class="legend-item"><div class="legend-color" style="background: #0284c7;"></div><span>Preferente B ($${precios["Preferente B"] ?? precios["Luneta"] ?? 150})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #16a34a;"></div><span>Preferente A ($${precios["Preferente A"] ?? precios["Mezzanine"] ?? 180})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #eab308;"></div><span>1ra Fila ($${precios["1ra Fila"] ?? precios["Preferente"] ?? 200})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #ea580c;"></div><span>Vis. Parcial ($${precios["Visibilidad Parcial"] ?? precios["Asientos Especiales"] ?? 120})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #475569; border:1px solid #ef4444;"></div><span>Ocupado</span></div>
+        `;
+      } else {
+        bar.innerHTML = `
+          <div class="legend-item"><div class="legend-color" style="background: #0284c7;"></div><span>Luneta ($${precios["Luneta"] ?? 150})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #7c3aed;"></div><span>Mezzanine ($${precios["Mezzanine"] ?? 180})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #16a34a;"></div><span>Preferente ($${precios["Preferente"] ?? 200})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #eab308;"></div><span>Especiales ($${precios["Asientos Especiales"] ?? 120})</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #475569; border:1px solid #ef4444;"></div><span>Ocupado</span></div>
+        `;
+      }
+    }
+
+    function applyStateToMap(stateData) {
+      const isCustom = stateData && stateData.modo === "custom" && stateData.mapaImg && Array.isArray(stateData.customSeats);
+      const layoutSig = isCustom
+        ? `custom:${stateData.customSeats.length}:${stateData.mapaImg.slice(0, 64)}`
+        : "grid:default";
+
+      if (layoutSig !== currentLayoutSignature) {
+        currentLayoutSignature = layoutSig;
+        buildMapLayout(stateData);
+        resetZoomAndPan();
+      }
+
+      updateLegendPrices(stateData.precios, isCustom);
+
+      const occupiedSet = new Set(Array.isArray(stateData.ocupados) ? stateData.ocupados : []);
+      const totalSeats = Object.keys(allSeatElements).length;
+      let occupiedCount = 0;
+
+      for (const [seatId, el] of Object.entries(allSeatElements)) {
+        const isOccupied = occupiedSet.has(seatId);
+        const cat = el.dataset.cat || "Preferente";
+        const precio = preciosZona[cat] ?? 150;
+
+        if (isOccupied) {
+          occupiedCount++;
+          el.classList.add('occupied');
+        } else {
+          el.classList.remove('occupied');
+        }
+
+        const tooltip = el.querySelector('.seat-tooltip');
+        if (tooltip) {
+          tooltip.innerHTML = `
+            <strong>${seatId}</strong> (${cat} - $${precio})<br>
+            Estado: <span style="color:${isOccupied ? '#f87171' : '#4ade80'}; font-weight:700;">
+              ${isOccupied ? 'Ocupado' : 'Disponible'}
+            </span>
+          `;
+        }
+      }
+
+      document.getElementById('stat-total').textContent = totalSeats;
+      document.getElementById('stat-ocupados').textContent = occupiedCount;
+      document.getElementById('stat-disponibles').textContent = Math.max(0, totalSeats - occupiedCount);
+
+      if (stateData.updatedAt) {
+        const dt = new Date(stateData.updatedAt);
+        if (!isNaN(dt.getTime())) {
+          document.getElementById('lastUpdatedLabel').textContent =
+            dt.toLocaleDateString('es-MX') + ' ' + dt.toLocaleTimeString('es-MX');
+        }
+      }
+
+      const newOccSig = Array.from(occupiedSet).sort().join(',');
+      if (lastOccupiedSignature !== "" && newOccSig !== lastOccupiedSignature) {
+        showToast("✨ ¡Butacas actualizadas en vivo!");
+      }
+      lastOccupiedSignature = newOccSig;
+    }
+
+    async function fetchLiveState(isManual = false) {
+      countdown = POLL_SECONDS;
+      document.getElementById('nextCheckCountdown').textContent = `${countdown}s`;
+
+      const dot = document.getElementById('liveDot');
+      const sub = document.getElementById('connectionSubtitle');
+
+      try {
+        const resp = await fetch(`./estado.json?v=${Date.now()}`, { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        applyStateToMap(data);
+
+        dot.classList.remove('offline');
+        sub.textContent = "Conectado en vivo • Actualización automática activa";
+        if (isManual) showToast("✓ Mapa sincronizado");
+      } catch (err) {
+        if (!currentLayoutSignature) {
+          currentLayoutSignature = "grid:default";
+          buildMapLayout(null);
+          applyStateToMap({ ocupados: [] });
+          resetZoomAndPan();
+        }
+        dot.classList.add('offline');
+        sub.textContent = "Esperando archivo estado.json en el repositorio...";
+      }
+    }
+
+    // Zoom y Paneo táctil / ratón
+    function applyTransform() {
+      const canvas = document.getElementById('seatingZoomCanvas');
+      const indicator = document.getElementById('zoomLevelIndicator');
+      if (canvas) canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${currentZoom})`;
+      if (indicator) indicator.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+
+    function resetZoomAndPan() {
+      const isMobile = window.innerWidth < 800;
+      currentZoom = isMobile ? 0.58 : 1.0;
+      panX = 0;
+      panY = 0;
+      applyTransform();
+    }
+
+    function initInteractions() {
+      const viewport = document.getElementById('seatingViewport');
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        currentZoom = Math.min(2.6, currentZoom + 0.25);
+        applyTransform();
+      });
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        currentZoom = Math.max(0.35, currentZoom - 0.25);
+        applyTransform();
+      });
+      document.getElementById('btnZoomReset').addEventListener('click', resetZoomAndPan);
+      document.getElementById('btnForceSync').addEventListener('click', () => fetchLiveState(true));
+
+      viewport.addEventListener('mousedown', (e) => {
+        isPanning = true;
+        startPanX = e.clientX - panX;
+        startPanY = e.clientY - panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        panX = e.clientX - startPanX;
+        panY = e.clientY - startPanY;
+        applyTransform();
+      });
+
+      window.addEventListener('mouseup', () => { isPanning = false; });
+
+      let initialPinchDist = null;
+      let initialZoomOnPinch = 1.0;
+
+      viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          isPanning = true;
+          startPanX = e.touches[0].clientX - panX;
+          startPanY = e.touches[0].clientY - panY;
+        } else if (e.touches.length === 2) {
+          isPanning = false;
+          initialPinchDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
+          initialZoomOnPinch = currentZoom;
+        }
+      }, { passive: true });
+
+      viewport.addEventListener('touchmove', (e) => {
+        if (isPanning && e.touches.length === 1) {
+          panX = e.touches[0].clientX - startPanX;
+          panY = e.touches[0].clientY - startPanY;
+          applyTransform();
+        } else if (e.touches.length === 2 && initialPinchDist) {
+          const currentDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
+          currentZoom = Math.min(2.6, Math.max(0.35, initialZoomOnPinch * (currentDist / initialPinchDist)));
+          applyTransform();
+        }
+      }, { passive: true });
+
+      viewport.addEventListener('touchend', () => {
+        isPanning = false;
+        initialPinchDist = null;
+      });
+
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          fetchLiveState(false);
+        } else {
+          document.getElementById('nextCheckCountdown').textContent = `${countdown}s`;
+        }
+      }, 1000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initInteractions();
+      fetchLiveState(false);
+    });
+  </script>
+</body>
+</html>
